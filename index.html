@@ -1,0 +1,1665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Judge Calibrator - correct a judge's pass rate with prediction-powered inference</title>
+<meta name="description" content="Paste an LLM judge's confusion matrix from a human-labeled calibration set. Get a prediction-powered corrected pass rate with a confidence interval, beside the Rogan-Gladen correction and its refusal states, plus Cohen's kappa from observed marginals.">
+<link rel="canonical" href="https://0xelitesystem.github.io/llm-judge-calibrator/">
+<meta property="og:title" content="LLM Judge Calibrator - correct a judge's pass rate with prediction-powered inference">
+<meta property="og:description" content="Paste an LLM judge's confusion matrix from a human-labeled calibration set. Get a prediction-powered corrected pass rate with a confidence interval, beside the Rogan-Gladen correction and its refusal states.">
+<meta property="og:url" content="https://0xelitesystem.github.io/llm-judge-calibrator/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "LLM Judge Calibrator",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "url": "https://0xelitesystem.github.io/llm-judge-calibrator/",
+  "description": "Correct an LLM judge's reported pass rate using prediction-powered inference, with the Rogan-Gladen estimator shown beside it and its refusal states demonstrated. Runs entirely in the browser with no external dependencies and no network requests.",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "author": {
+    "@type": "Organization",
+    "name": "elitesystem.ai",
+    "url": "https://elitesystem.ai"
+  }
+}
+</script>
+<style>
+:root{
+  --bg:#0a0e13;
+  --bg2:#0f151d;
+  --panel:#121a24;
+  --panel2:#172230;
+  --line:#22303f;
+  --line2:#2e4053;
+  --fg:#e8eef5;
+  --fg2:#9fb0c0;
+  --fg3:#6f8296;
+  --accent:#57a8ff;
+  --good:#4ac97e;
+  --warn:#e5a83c;
+  --bad:#ff6b5e;
+  --hero:#7fd1ff;
+  --dated-bg:#1a1710;
+  --dated-line:#4a3d1c;
+  --dated-fg:#e8d9a8;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --r:10px;
+}
+:root[data-theme="light"]{
+  --bg:#f4f6f9;
+  --bg2:#eceff4;
+  --panel:#ffffff;
+  --panel2:#f7f9fc;
+  --line:#d6dde6;
+  --line2:#bcc7d4;
+  --fg:#131a22;
+  --fg2:#4a5a6a;
+  --fg3:#6b7c8d;
+  --accent:#0b62d6;
+  --good:#12813f;
+  --warn:#8a5c00;
+  --bad:#c02718;
+  --hero:#0b4f96;
+  --dated-bg:#fdf6e3;
+  --dated-line:#e0cf98;
+  --dated-fg:#5c4a12;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 72px}
+a{color:var(--accent);overflow-wrap:anywhere;word-break:break-word}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{
+  outline:3px solid var(--accent);outline-offset:2px;border-radius:4px;
+}
+h1,h2,h3{line-height:1.25;margin:0 0 .4em}
+h1{font-size:clamp(1.5rem,4.2vw,2.15rem);letter-spacing:-.02em}
+h2{font-size:clamp(1.15rem,2.8vw,1.4rem);margin-top:2.2rem;padding-top:.4rem}
+h3{font-size:1.02rem;margin-top:1.5rem;color:var(--fg)}
+p{margin:0 0 .9em}
+code,kbd{font-family:var(--mono);font-size:.9em;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:.08em .35em}
+.small{font-size:.86rem;color:var(--fg2)}
+.tiny{font-size:.79rem;color:var(--fg3)}
+header.top{
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,var(--bg2),var(--bg));
+  padding:18px 0 20px;margin-bottom:8px;
+}
+.topbar{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.brandline{min-width:0;flex:1 1 320px}
+.tagline{color:var(--fg2);margin:.2em 0 0;font-size:.98rem}
+.themebtn{
+  flex:0 0 auto;background:var(--panel);color:var(--fg);border:1px solid var(--line2);
+  border-radius:999px;padding:.5rem .9rem;font:inherit;font-size:.86rem;cursor:pointer;
+}
+.themebtn:hover{border-color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin:14px 0}
+.panel.tight{padding:12px 14px}
+.dated{
+  background:var(--dated-bg);border:1px dashed var(--dated-line);color:var(--dated-fg);
+  border-radius:var(--r);padding:14px 16px;margin:14px 0;
+}
+.dated a{color:inherit;text-decoration:underline}
+.dated .stamp{
+  display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+  text-transform:uppercase;border:1px solid var(--dated-line);border-radius:999px;
+  padding:.1rem .55rem;margin-bottom:.6rem;
+}
+blockquote.q{
+  margin:.5em 0;padding:.4em 0 .4em .9em;border-left:3px solid var(--dated-line);
+  font-style:normal;
+}
+.grid{display:grid;gap:12px}
+@media(min-width:720px){ .grid.two{grid-template-columns:1fr 1fr} .grid.three{grid-template-columns:repeat(3,1fr)} }
+.grid > *{min-width:0}
+.field{display:flex;flex-direction:column;gap:.3rem;min-width:0}
+.field label{font-size:.86rem;color:var(--fg2);font-weight:600}
+.field input[type="number"],.field input[type="text"]{
+  width:100%;min-width:0;background:var(--bg2);color:var(--fg);border:1px solid var(--line2);
+  border-radius:8px;padding:.55rem .6rem;font:inherit;font-family:var(--mono);font-size:.95rem;
+}
+.field .hint{font-size:.78rem;color:var(--fg3)}
+fieldset{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:0 0 12px;min-width:0}
+legend{font-size:.86rem;font-weight:700;color:var(--fg);padding:0 .4rem}
+.radios{display:flex;flex-direction:column;gap:.5rem}
+.radios label{display:flex;gap:.6rem;align-items:flex-start;font-size:.92rem;cursor:pointer}
+.radios input{margin-top:.35rem;flex:0 0 auto}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+button.act{
+  background:var(--accent);color:#00121f;border:1px solid transparent;border-radius:8px;
+  padding:.6rem 1rem;font:inherit;font-weight:700;cursor:pointer;
+}
+:root[data-theme="light"] button.act{color:#fff}
+button.act:hover{filter:brightness(1.08)}
+button.ghost{
+  background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:8px;
+  padding:.6rem 1rem;font:inherit;cursor:pointer;
+}
+button.ghost:hover{border-color:var(--accent)}
+button.mini{
+  background:var(--panel2);color:var(--fg2);border:1px solid var(--line2);border-radius:7px;
+  padding:.28rem .6rem;font:inherit;font-size:.78rem;cursor:pointer;
+}
+button.mini:hover{border-color:var(--accent);color:var(--fg)}
+.hero{
+  border:1px solid var(--line2);border-radius:var(--r);padding:18px;
+  background:linear-gradient(160deg,var(--panel2),var(--panel));
+}
+.hero .lbl{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3);font-family:var(--mono)}
+.hero .big{font-size:clamp(2rem,7vw,2.9rem);font-weight:800;letter-spacing:-.02em;color:var(--hero);line-height:1.1;margin:.15em 0}
+.hero .ci{font-family:var(--mono);font-size:.95rem;color:var(--fg2)}
+.stat{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--panel2)}
+.stat .lbl{font-size:.76rem;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);font-family:var(--mono)}
+.stat .val{font-size:1.4rem;font-weight:750;letter-spacing:-.01em;margin:.1em 0}
+.stat .sub{font-size:.82rem;color:var(--fg2);font-family:var(--mono)}
+.val.good{color:var(--good)} .val.warn{color:var(--warn)} .val.bad{color:var(--bad)}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:460px;font-size:.9rem}
+th,td{border:1px solid var(--line);padding:.45rem .6rem;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{background:var(--panel2);color:var(--fg2);font-size:.8rem;letter-spacing:.03em}
+td.num{font-family:var(--mono)}
+pre{
+  background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:12px;
+  overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55;margin:.6em 0;
+}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+ul,ol{margin:.2em 0 .9em;padding-left:1.25em}
+li{margin:.25em 0}
+.note{border-left:3px solid var(--line2);padding:.1em 0 .1em .8rem;margin:.7em 0;color:var(--fg2);font-size:.9rem}
+.note.warn{border-left-color:var(--warn)}
+.note.bad{border-left-color:var(--bad)}
+.note.good{border-left-color:var(--good)}
+.badge{
+  display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;
+  text-transform:uppercase;border-radius:999px;padding:.12rem .55rem;border:1px solid var(--line2);
+  color:var(--fg2);background:var(--panel2);
+}
+.badge.ok{border-color:var(--good);color:var(--good)}
+.badge.warn{border-color:var(--warn);color:var(--warn)}
+.badge.bad{border-color:var(--bad);color:var(--bad)}
+.badge.inf{border-color:var(--accent);color:var(--accent)}
+.refuse{border:1px solid var(--bad);border-radius:var(--r);padding:14px 16px;background:rgba(255,107,94,.07)}
+.refuse h4,.refuse .rh{margin:.1em 0 .5em;font-size:1rem;color:var(--bad)}
+h4{font-size:.96rem;margin:1.1em 0 .4em}
+.rh{font-size:1rem;margin:.1em 0 .5em;font-weight:700}
+.hidden{display:none !important}
+details{border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;margin:12px 0;background:var(--panel)}
+details summary{cursor:pointer;font-weight:650;font-size:.94rem}
+details[open] summary{margin-bottom:.6rem}
+footer.bot{border-top:1px solid var(--line);margin-top:44px;padding-top:18px;color:var(--fg2);font-size:.9rem}
+footer.bot ul{list-style:none;padding:0;display:flex;gap:18px;flex-wrap:wrap}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.matrix{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:end;min-width:0}
+.matrix .corner{font-size:.78rem;color:var(--fg3)}
+.matrix .colhead,.matrix .rowhead{font-size:.8rem;color:var(--fg2);font-weight:650}
+.matrix .rowhead{align-self:center}
+.eq{font-family:var(--mono);font-size:.86rem;color:var(--fg2);word-break:break-word}
+.divider{height:1px;background:var(--line);margin:1.4rem 0}
+.kv{display:flex;justify-content:space-between;gap:1rem;border-bottom:1px dotted var(--line);padding:.32rem 0;font-size:.9rem;flex-wrap:wrap}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--fg2);min-width:0;flex:1 1 auto}
+.kv .v{font-family:var(--mono);text-align:right;min-width:0;flex:0 1 auto;overflow-wrap:anywhere}
+@media(max-width:520px){
+  .kv{flex-direction:column;gap:.1rem}
+  .kv .v{text-align:left}
+}
+@media(max-width:400px){
+  .wrap{padding-left:12px;padding-right:12px}
+  .panel{padding:13px}
+  .hero{padding:14px}
+}
+</style>
+</head>
+<body>
+<script>
+(function(){
+  try{
+    var t = window.localStorage.getItem("ljc-theme");
+    if(t === "light" || t === "dark"){ document.documentElement.setAttribute("data-theme", t); }
+    else { document.documentElement.setAttribute("data-theme","dark"); }
+  }catch(e){ document.documentElement.setAttribute("data-theme","dark"); }
+})();
+</script>
+
+<header class="top">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brandline">
+        <h1>LLM Judge Calibrator</h1>
+        <p class="tagline">Your judge says 94 percent of production responses pass. Paste its confusion matrix from your human-labeled calibration set and find out what the measuring instrument is actually doing.</p>
+      </div>
+      <button type="button" class="themebtn" id="themeBtn" aria-pressed="false">
+        <span id="themeLabel">Light mode</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <h2 id="startHere">Start here: judge error is not independent of the system you are judging</h2>
+
+  <p>Every classical prevalence correction on this page, and the attenuation identity further down, assumes the judge's error rate does not depend on <em>which system produced the output</em>. Published work on LLM judges says that assumption fails, and it fails in the direction that flatters whatever produced the text.</p>
+
+  <div class="dated">
+    <span class="stamp">Dated external reference - fetched 2026-08-11 - not computed by this page</span>
+    <p><strong>Self-Preference Bias in Rubric-Based Evaluation of Large Language Models</strong>, arXiv:2604.06996v2, submitted 22 Jul 2026. From the abstract:</p>
+    <blockquote class="q">among rubrics where generators fail, judges can be more than 50% more likely to incorrectly mark them as satisfied when the output is their own</blockquote>
+    <blockquote class="q">On HealthBench, a medical chat benchmark with subjective rubrics, we observe that SPB skews model scores by up to 10 points, a potentially decisive margin when ranking frontier models.</blockquote>
+    <p class="small" style="margin-top:.7em">Second reference, <strong>Quantifying and Mitigating Self-Preference Bias of LLM Judges</strong>, arXiv:2604.22891, submitted 24 Apr 2026. From the abstract:</p>
+    <blockquote class="q">Empirical analysis across 20 mainstream LLMs reveals that advanced capabilities are often uncorrelated, or even negatively correlated, with low SPB.</blockquote>
+    <p class="small" style="margin:.7em 0 0">Links: <a href="https://arxiv.org/abs/2604.06996v2" rel="noopener">arxiv.org/abs/2604.06996v2</a> and <a href="https://arxiv.org/abs/2604.22891" rel="noopener">arxiv.org/abs/2604.22891</a>. Quoted text above is copied verbatim from those abstract pages on the date stamped. Nothing in this box is produced by the arithmetic below, and a later revision of either paper does not change any number this page computes.</p>
+    <p class="small" style="margin:.7em 0 0">The first link is pinned to <strong>v2</strong> on purpose, and the pin is load-bearing. Submission history as checked on 2026-08-11: v1 8 Apr 2026, v2 22 Jul 2026, v3 3 Aug 2026. The first quoted sentence appears verbatim in v2 and v3; v1 reads <em>up to 50%</em> rather than <em>more than 50%</em>, so an unversioned citation of that number would have been ambiguous. The unversioned page <a href="https://arxiv.org/abs/2604.06996" rel="noopener">arxiv.org/abs/2604.06996</a> currently serves v3.</p>
+  </div>
+
+  <p>So the headline estimator here is <strong>prediction-powered inference</strong> (PPI), which needs no assumption at all about how the judge errs. Rogan-Gladen, the classical screening-test correction, stays on screen next to it with its independence assumption printed and its breaking points demonstrated. <strong>The gap between the two numbers is the point of the tool.</strong></p>
+
+  <h2 id="inputsHead">Inputs</h2>
+
+  <div class="panel">
+    <p class="small" id="emptyIntro">Two things go in. First, the four counts from comparing your judge against human labels on a calibration set. Second, the judge's verdicts on the run you actually want a number for. Nothing you type leaves the page.</p>
+    <div class="btnrow">
+      <button type="button" class="act" id="sampleBtn">Load sample</button>
+      <button type="button" class="ghost" id="clearBtn">Clear</button>
+    </div>
+  </div>
+
+  <form id="form" novalidate>
+
+    <fieldset>
+      <legend>1. Calibration set: judge verdict against human label</legend>
+      <p class="tiny" style="margin-top:0">Rows are what the judge said. Columns are what the human said. "Pass" means the response was acceptable. Counts, not percentages.</p>
+      <div class="grid two">
+        <div class="field">
+          <label for="tp">Judge PASS, human PASS (true pass)</label>
+          <input type="number" id="tp" min="0" step="1" inputmode="numeric" aria-describedby="tpHint">
+          <span class="hint" id="tpHint">The judge agreed and was right.</span>
+        </div>
+        <div class="field">
+          <label for="fp">Judge PASS, human FAIL (false pass)</label>
+          <input type="number" id="fp" min="0" step="1" inputmode="numeric" aria-describedby="fpHint">
+          <span class="hint" id="fpHint">The judge waved through a bad response. This is the count that inflates your pass rate.</span>
+        </div>
+        <div class="field">
+          <label for="fn">Judge FAIL, human PASS (false fail)</label>
+          <input type="number" id="fn" min="0" step="1" inputmode="numeric" aria-describedby="fnHint">
+          <span class="hint" id="fnHint">The judge flunked a good response.</span>
+        </div>
+        <div class="field">
+          <label for="tn">Judge FAIL, human FAIL (true fail)</label>
+          <input type="number" id="tn" min="0" step="1" inputmode="numeric" aria-describedby="tnHint">
+          <span class="hint" id="tnHint">The judge caught it.</span>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. How was the calibration set chosen?</legend>
+      <p class="tiny" style="margin-top:0">This is a hard gate, not a checkbox. PPI is valid because the labeled subset is a random draw from the same pool the judge scores. Hand-picking interesting cases destroys that and the tool will refuse rather than print a number it cannot stand behind.</p>
+      <div class="radios">
+        <label><input type="radio" name="sampling" value="random"> <span><strong>Randomly sampled</strong> from the same pool of production items the judge scores.</span></label>
+        <label><input type="radio" name="sampling" value="handpicked"> <span><strong>Hand-picked, stratified, or adversarially selected</strong> - someone chose interesting, hard, failing, or flagged cases.</span></label>
+        <label><input type="radio" name="sampling" value="unsure"> <span><strong>I do not know how it was built.</strong></span></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. The run you want the number for</legend>
+      <p class="tiny" style="margin-top:0">The unlabeled items the judge scored but no human reviewed. This is the pool the calibration set should have been drawn from.</p>
+      <div class="grid two">
+        <div class="field">
+          <label for="uTotal">Unlabeled items scored by the judge</label>
+          <input type="number" id="uTotal" min="1" step="1" inputmode="numeric" aria-describedby="uTotalHint">
+          <span class="hint" id="uTotalHint">Size of the production run, excluding the calibration items.</span>
+        </div>
+        <div class="field">
+          <label for="uPass">Of those, how many the judge passed</label>
+          <input type="number" id="uPass" min="0" step="1" inputmode="numeric" aria-describedby="uPassHint">
+          <span class="hint" id="uPassHint">The raw number behind the pass rate you have been quoting.</span>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Optional: a second system, same judge</legend>
+      <p class="tiny" style="margin-top:0">Fill this in only if you want the between-system gap panel. Leave the rate blank to skip it.</p>
+      <div class="grid three">
+        <div class="field">
+          <label for="nameA">Name of system A</label>
+          <input type="text" id="nameA" maxlength="40" placeholder="current build" autocomplete="off">
+          <span class="hint">Label only. Defaults to "System A".</span>
+        </div>
+        <div class="field">
+          <label for="nameB">Name of system B</label>
+          <input type="text" id="nameB" maxlength="40" placeholder="last week's build" autocomplete="off">
+          <span class="hint">Label only. Defaults to "System B".</span>
+        </div>
+        <div class="field">
+          <label for="rateB">Judge-reported pass rate for B (percent)</label>
+          <input type="number" id="rateB" min="0" max="100" step="0.01" inputmode="decimal">
+          <span class="hint">Scored by the same judge, same rubric.</span>
+        </div>
+      </div>
+      <div class="grid two" style="margin-top:12px">
+        <div class="field">
+          <label for="regr">Regression you are paging about (percentage points)</label>
+          <input type="number" id="regr" min="0" max="100" step="0.01" inputmode="decimal" value="3">
+          <span class="hint">Used only to compare against the width of the corrected interval.</span>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+
+  <div id="problems" class="hidden" role="alert"></div>
+  <p id="srStatus" class="sr" role="status"></p>
+
+  <div id="emptyState" class="panel">
+    <h3 style="margin-top:.2em">Nothing computed yet</h3>
+    <p class="small">Fill in the four calibration counts, choose how the calibration set was built, and give the size and pass count of the unlabeled run. Or press <strong>Load sample</strong> above for a realistic 200-example calibration set against a 5,000-item production run, where the judge reports 94 percent and the corrected answer is roughly ten points lower.</p>
+    <p class="small">Everything runs in this tab. There is no backend, no API key, and no external dependency.</p>
+  </div>
+
+  <div id="gateBlock" class="hidden"></div>
+
+  <section id="results" class="hidden">
+
+    <h2>Results</h2>
+
+    <h3 id="h-ppi">Headline: prediction-powered estimate of the true pass rate</h3>
+    <div class="hero" id="ppiHero">
+      <div class="lbl">Corrected true pass rate (PPI)</div>
+      <div class="big" id="ppiBig">-</div>
+      <div class="ci" id="ppiCi">-</div>
+      <p class="small" id="ppiExplain" style="margin:.8em 0 0"></p>
+    </div>
+    <div class="grid three" style="margin-top:12px">
+      <div class="stat"><div class="lbl">Judge said (raw)</div><div class="val" id="rawVal">-</div><div class="sub" id="rawSub">-</div></div>
+      <div class="stat"><div class="lbl">Human-labeled subset only</div><div class="val" id="humVal">-</div><div class="sub" id="humSub">-</div></div>
+      <div class="stat"><div class="lbl">Rectifier (judge bias)</div><div class="val" id="rectVal">-</div><div class="sub" id="rectSub">-</div></div>
+    </div>
+    <div class="panel tight">
+      <p class="small" style="margin:0">PPI makes <strong>no assumption about how the judge errs</strong>. It takes the judge's rate over the whole unlabeled run and subtracts the average error the judge made on the randomly sampled labeled subset. Correlated error, asymmetric error, error that depends on which model wrote the response - none of it breaks the estimator, because the correction is measured rather than modeled. What it does require, absolutely, is that the labeled subset be a random draw. That is why the gate above exists.</p>
+    </div>
+
+    <h3 id="h-rg">Beside it: Rogan-Gladen, the classical correction</h3>
+    <div id="rgBox"></div>
+
+    <h3 id="h-div">The divergence, which is the actual lesson</h3>
+    <div id="divBox"></div>
+
+    <h3 id="h-prec">How precise you are actually entitled to be</h3>
+    <div id="precBox"></div>
+
+    <h3 id="h-kappa">Cohen's kappa, from the observed marginals</h3>
+    <div id="kappaBox"></div>
+
+    <h3 id="h-gap">Between-system gap and the attenuation identity</h3>
+    <div id="gapBox"></div>
+
+    <h3 id="h-checks">Sanity checks on what you entered</h3>
+    <div id="checkBox"></div>
+
+    <div class="btnrow">
+      <button type="button" class="act" id="copyBtn">Copy the full summary</button>
+      <button type="button" class="ghost" id="copyMathBtn">Copy the arithmetic</button>
+    </div>
+  </section>
+
+  <h2>Refusal states and edge cases you can load</h2>
+  <p class="small">Each of these loads a real set of counts that breaks one of the estimators. Watching a tool refuse is more informative than watching it always answer.</p>
+  <div class="btnrow" id="caseBtns">
+    <button type="button" class="ghost" data-case="rgneg">Rogan-Gladen falls below zero</button>
+    <button type="button" class="ghost" data-case="rghigh">Rogan-Gladen goes above one</button>
+    <button type="button" class="ghost" data-case="rgdegen">Rogan-Gladen degenerate (sens + spec = 1)</button>
+    <button type="button" class="ghost" data-case="kappa0">Kappa exactly 0.00 on 85 percent agreement</button>
+    <button type="button" class="ghost" data-case="gate">Hand-picked set (hard gate fires)</button>
+  </div>
+
+  <h2>The math, written out</h2>
+
+  <h3>Prediction-powered inference (the headline)</h3>
+  <p class="small">With <code>n</code> labeled pairs and <code>N</code> unlabeled items, <code>Y</code> the human label in {0,1} and <code>f</code> the judge's verdict in {0,1}:</p>
+  <pre><code>theta_PP = mean_unlabeled( f )  -  mean_labeled( f - Y )
+
+           = U_pass/N  -  (FP - FN)/n
+
+s2_d  = sample variance of (f - Y) over the n labeled pairs
+      = (n/(n-1)) * ( (FP+FN)/n  -  ((FP-FN)/n)^2 )
+
+s2_f  = sample variance of f over the N unlabeled items
+      = (N/(N-1)) * p_app * (1 - p_app)
+
+95% CI = theta_PP  +/-  1.96 * sqrt( s2_d/n  +  s2_f/N )</code></pre>
+  <div class="dated">
+    <span class="stamp">Dated external reference - fetched 2026-08-11 - not computed by this page</span>
+    <p>Source: <strong>Prediction-Powered Inference</strong>, Angelopoulos, Bates, Fannjiang, Jordan and Zrnic, arXiv:2301.09633. From the abstract:</p>
+    <blockquote class="q">The framework yields simple algorithms for computing provably valid confidence intervals for quantities such as means, quantiles, and linear and logistic regression coefficients, without making any assumptions on the machine-learning algorithm that supplies the predictions.</blockquote>
+    <p class="small">The mean-estimation setup in that paper assumes the labeled pairs and the unlabeled points are independent and identically distributed draws from a common distribution. That is the sampling condition the gate above enforces, and it is the only condition this estimator needs. The reference implementation the authors maintain describes PPI as, verbatim:</p>
+    <blockquote class="q">Prediction-powered inference (PPI) is a framework for statistically rigorous scientific discovery using machine learning.</blockquote>
+    <p class="small" style="margin-bottom:0">Links: <a href="https://arxiv.org/abs/2301.09633" rel="noopener">arxiv.org/abs/2301.09633</a>, <a href="https://github.com/aangelopoulos/ppi_py" rel="noopener">github.com/aangelopoulos/ppi_py</a>. The interval above is the plain normal-approximation PPI interval for a mean; this page does not implement the power-tuned PPI++ variant.</p>
+  </div>
+
+  <h3>Rogan-Gladen (shown beside it, not as the answer)</h3>
+  <pre><code>sens = TP / (TP + FN)          spec = TN / (TN + FP)
+J    = sens + spec - 1         (the Youden index)
+
+theta_RG = ( p_app + spec - 1 ) / J
+
+Var(theta_RG), by the delta method:
+
+  Var(p_app) = p_app(1-p_app)/N
+  Var(sens)  = sens(1-sens)/(TP+FN)
+  Var(spec)  = spec(1-spec)/(TN+FP)
+
+  Var(theta_RG) ~= [ Var(p_app)
+                     + theta_RG^2       * Var(sens)
+                     + (1-theta_RG)^2   * Var(spec) ] / J^2</code></pre>
+  <p class="small">Those partial derivatives are <code>d/dp = 1/J</code>, <code>d/dsens = -theta/J</code> and <code>d/dspec = (1-theta)/J</code>. Propagating the sensitivity and specificity uncertainty is the whole point: a binomial interval on the apparent rate alone is the number that makes a 200-example calibration set look like a measuring instrument accurate to a tenth of a point.</p>
+  <div class="dated">
+    <span class="stamp">Dated external reference - fetched 2026-08-11 - not computed by this page</span>
+    <p>The corrected estimate and its asymptotic standard error come from Rogan W J and Gladen B, <em>Estimating prevalence from the results of a screening test</em>, American Journal of Epidemiology, 1978 (<a href="https://pubmed.ncbi.nlm.nih.gov/623091/" rel="noopener">PubMed 623091</a>). The out-of-range behaviour is documented in the R <code>epiR</code> package reference for <code>epi.prev</code>, which states, verbatim:</p>
+    <blockquote class="q">If apparent prevalence is less than (1 - diagnostic test specificity) the Rogan Gladen estimate of true prevalence will be less than zero (Speybroeck et al. 2012).</blockquote>
+    <blockquote class="q">If the apparent prevalence is greater than the diagnostic test sensitivity the Rogan Gladen estimate of true prevalence will be greater than one.</blockquote>
+    <p class="small" style="margin-bottom:0">Link: <a href="https://search.r-project.org/CRAN/refmans/epiR/html/epi.prev.html" rel="noopener">search.r-project.org/CRAN/refmans/epiR/html/epi.prev.html</a>. The third failure mode, <code>sens + spec &lt;= 1</code>, is not a citation, it is division: at exactly 1 the denominator is zero, and below 1 the denominator is negative so the correction runs backwards.</p>
+  </div>
+
+  <h3>Cohen's kappa</h3>
+  <pre><code>p_o = (TP + TN) / n
+
+p_e = [ (TP+FN)(TP+FP) + (FP+TN)(FN+TN) ] / n^2      <- from the OBSERVED marginals
+
+kappa = (p_o - p_e) / (1 - p_e)</code></pre>
+  <p class="small">Expected agreement is computed from the marginals you entered, never hardcoded to 0.5. That is the entire difference between kappa and a decorative number. A judge that says pass to everything, on a set that is 85 percent pass, scores 85 percent raw agreement and kappa of exactly 0.00. Load that case from the buttons above and watch it happen.</p>
+
+  <h3>The attenuation identity</h3>
+  <pre><code>If the judge's two error rates are equal, call that common rate e:
+    e = 1 - sens = 1 - spec
+
+then for a system whose true pass rate is theta, the judge reports
+
+    p_app = e + theta * (1 - 2e)
+
+so a true gap G between two systems is reported as G * (1 - 2e),
+and 1 - 2e is exactly sens + spec - 1, the same J that Rogan-Gladen divides by.</code></pre>
+  <p class="small">This page reports <code>measured_gap / (1 - 2e)</code> as a <strong>ceiling on what the identity licenses</strong>, not as a correction to apply to your numbers. Under independent symmetric error, judge noise can only shrink a real gap, so the implied true gap is the most you could claim. The floor is zero, because error that is correlated with which system produced the output can manufacture a gap from nothing - which is precisely what the dated references at the top of this page report happening. The page also prints the two error rates separately, so you can see whether the symmetry precondition holds on your own data before you look at the number.</p>
+
+  <h2>What this tool is not</h2>
+  <ul class="small">
+    <li>It is not a significance test on a delta between two eval runs. <a href="https://0xelitesystem.github.io/eval-significance-calculator/" rel="noopener">eval-significance-calculator</a> asks whether a delta is noise. This page asks whether the instrument that produced the delta is lying.</li>
+    <li>It does not grade your judge or tell you whether it is good enough. It reports what your own labels say about it.</li>
+    <li>It does not read your eval files, call a model, or send anything anywhere. Everything above is arithmetic on the numbers in the boxes.</li>
+  </ul>
+
+  <h2>Sources</h2>
+  <div class="dated">
+    <span class="stamp">Dated external reference - all links fetched 2026-08-11</span>
+    <ul style="margin-bottom:0">
+      <li>Angelopoulos, Bates, Fannjiang, Jordan, Zrnic. <em>Prediction-Powered Inference</em>. arXiv:2301.09633. <a href="https://arxiv.org/abs/2301.09633" rel="noopener">arxiv.org/abs/2301.09633</a></li>
+      <li>Reference implementation, <code>ppi_py</code>. <a href="https://github.com/aangelopoulos/ppi_py" rel="noopener">github.com/aangelopoulos/ppi_py</a></li>
+      <li>Rogan W J, Gladen B. <em>Estimating prevalence from the results of a screening test</em>. Am J Epidemiol, 1978. <a href="https://pubmed.ncbi.nlm.nih.gov/623091/" rel="noopener">pubmed.ncbi.nlm.nih.gov/623091</a></li>
+      <li>R <code>epiR</code> reference for <code>epi.prev</code>, out-of-range conditions. <a href="https://search.r-project.org/CRAN/refmans/epiR/html/epi.prev.html" rel="noopener">search.r-project.org/CRAN/refmans/epiR/html/epi.prev.html</a></li>
+      <li><em>Self-Preference Bias in Rubric-Based Evaluation of Large Language Models</em>. arXiv:2604.06996v2, 22 Jul 2026 (v3 dated 3 Aug 2026 carries the same two sentences). <a href="https://arxiv.org/abs/2604.06996v2" rel="noopener">arxiv.org/abs/2604.06996v2</a></li>
+      <li><em>Quantifying and Mitigating Self-Preference Bias of LLM Judges</em>. arXiv:2604.22891, 24 Apr 2026. <a href="https://arxiv.org/abs/2604.22891" rel="noopener">arxiv.org/abs/2604.22891</a></li>
+      <li>Landis J R, Koch G G, 1977, for the conventional kappa bands. Those bands are an arbitrary convention, not a threshold, and this page prints the number larger than the band.</li>
+    </ul>
+  </div>
+  <p class="tiny">Every quoted sentence on this page was copied verbatim from the linked page on 2026-08-11. Paraphrases carry no quote marks. No number produced by the calculator above depends on any of these pages remaining unchanged.</p>
+
+</main>
+
+<footer class="bot">
+  <div class="wrap">
+    <ul>
+      <li><a href="https://elitesystem.ai" rel="noopener">An elitesystem.ai tool</a></li>
+      <li><a href="https://github.com/0xelitesystem/llm-judge-calibrator" rel="noopener">Source on GitHub</a></li>
+      <li><a href="https://0xelitesystem.github.io/" rel="noopener">More tools</a></li>
+    </ul>
+    <p class="tiny">Runs entirely in your browser. No external dependencies, no network requests, no data collection.</p>
+  </div>
+</footer>
+
+<script>
+"use strict";
+
+/* ============================================================
+   PURE CORE
+   No document or window access anywhere in this section.
+   Every function takes plain values and returns a plain object.
+   ============================================================ */
+
+var Z95 = 1.959963984540054;
+
+/** Strict non-negative integer parse. Returns null when not usable. */
+function parseCount(raw){
+  if(raw === null || raw === undefined) return null;
+  var s = String(raw).trim();
+  if(s === "") return null;
+  if(!/^[0-9]{1,15}$/.test(s)) return null;
+  var v = Number(s);
+  if(!Number.isFinite(v)) return null;
+  return v;
+}
+
+/** Strict finite-rate parse in [0,100]. Returns null when absent, NaN when malformed. */
+function parsePercent(raw){
+  if(raw === null || raw === undefined) return null;
+  var s = String(raw).trim();
+  if(s === "") return null;
+  if(!/^[0-9]{1,6}(\.[0-9]{1,6})?$/.test(s)) return NaN;
+  var v = Number(s);
+  if(!Number.isFinite(v)) return NaN;
+  if(v < 0 || v > 100) return NaN;
+  return v;
+}
+
+/** Safe division. Returns null instead of Infinity or NaN. */
+function div(a, b){
+  if(!Number.isFinite(a) || !Number.isFinite(b) || b === 0) return null;
+  var r = a / b;
+  return Number.isFinite(r) ? r : null;
+}
+
+/** Wald binomial interval on k successes out of n. */
+function binomialInterval(k, n, z){
+  var p = div(k, n);
+  if(p === null) return { ok:false, reason:"n is zero" };
+  var v = div(p * (1 - p), n);
+  if(v === null || v < 0) return { ok:false, reason:"variance not computable" };
+  var se = Math.sqrt(v);
+  if(!Number.isFinite(se)) return { ok:false, reason:"variance not finite" };
+  var half = z * se;
+  return { ok:true, p:p, se:se, half:half, lo:p - half, hi:p + half };
+}
+
+/** Two-proportion z between the labeled judge rate and the unlabeled judge rate. */
+function twoProportionZ(k1, n1, k2, n2){
+  var p1 = div(k1, n1), p2 = div(k2, n2);
+  var pooled = div(k1 + k2, n1 + n2);
+  if(p1 === null || p2 === null || pooled === null) return { ok:false };
+  var inv = div(1, n1), inv2 = div(1, n2);
+  if(inv === null || inv2 === null) return { ok:false };
+  var varTerm = pooled * (1 - pooled) * (inv + inv2);
+  if(!Number.isFinite(varTerm) || varTerm <= 0){
+    return { ok:true, p1:p1, p2:p2, diff:p1 - p2, z:0, degenerate:true };
+  }
+  var z = div(p1 - p2, Math.sqrt(varTerm));
+  if(z === null) return { ok:false };
+  return { ok:true, p1:p1, p2:p2, diff:p1 - p2, z:z, degenerate:false };
+}
+
+/**
+ * Prediction-powered estimate of the true pass rate.
+ * m: {tp,fp,fn,tn}. uPass/uTotal: judge verdicts on the unlabeled pool.
+ */
+function ppiEstimate(m, uPass, uTotal, z){
+  var n = m.tp + m.fp + m.fn + m.tn;
+  if(n < 2) return { ok:false, reason:"the calibration set needs at least 2 labeled items" };
+  if(uTotal < 2) return { ok:false, reason:"the unlabeled run needs at least 2 items" };
+
+  var pApp = div(uPass, uTotal);
+  if(pApp === null) return { ok:false, reason:"unlabeled pass rate not computable" };
+
+  var meanD = div(m.fp - m.fn, n);          // mean of (judge - human) over labeled
+  var meanD2 = div(m.fp + m.fn, n);         // mean of (judge - human)^2, values are 0 or 1
+  if(meanD === null || meanD2 === null) return { ok:false, reason:"rectifier not computable" };
+
+  var theta = pApp - meanD;
+
+  var popVarD = meanD2 - meanD * meanD;
+  if(popVarD < 0) popVarD = 0;
+  var bessel = div(n, n - 1);
+  var s2d = bessel === null ? popVarD : popVarD * bessel;
+
+  var popVarF = pApp * (1 - pApp);
+  if(popVarF < 0) popVarF = 0;
+  var besselF = div(uTotal, uTotal - 1);
+  var s2f = besselF === null ? popVarF : popVarF * besselF;
+
+  var t1 = div(s2d, n), t2 = div(s2f, uTotal);
+  if(t1 === null || t2 === null) return { ok:false, reason:"variance not computable" };
+  var varTotal = t1 + t2;
+  if(!Number.isFinite(varTotal) || varTotal < 0) return { ok:false, reason:"variance not finite" };
+
+  var se = Math.sqrt(varTotal);
+  var half = z * se;
+  if(!Number.isFinite(se) || !Number.isFinite(half)) return { ok:false, reason:"interval not finite" };
+
+  return {
+    ok:true, n:n, N:uTotal, pApp:pApp,
+    rectifier:meanD, theta:theta, se:se, half:half,
+    lo:theta - half, hi:theta + half,
+    varLabeledPart:t1, varUnlabeledPart:t2,
+    outOfRange: (theta < 0 || theta > 1)
+  };
+}
+
+/**
+ * Rogan-Gladen corrected rate plus a delta-method interval.
+ * Returns status: "ok" | "degenerate" | "inverted" | "below_zero" | "above_one".
+ */
+function roganGladen(m, uPass, uTotal, z){
+  var n1 = m.tp + m.fn;   // human PASS
+  var n0 = m.tn + m.fp;   // human FAIL
+  var sens = div(m.tp, n1);
+  var spec = div(m.tn, n0);
+  if(sens === null) return { ok:false, status:"no_positives", reason:"no human-labeled passes, so sensitivity is undefined" };
+  if(spec === null) return { ok:false, status:"no_negatives", reason:"no human-labeled fails, so specificity is undefined" };
+
+  var pApp = div(uPass, uTotal);
+  if(pApp === null) return { ok:false, status:"no_pool", reason:"unlabeled pass rate not computable" };
+
+  var J = sens + spec - 1;
+  var base = { sens:sens, spec:spec, J:J, pApp:pApp, n1:n1, n0:n0,
+               lowerEdge: 1 - spec, upperEdge: sens };
+
+  if(J === 0){
+    base.ok = false; base.status = "degenerate";
+    base.reason = "sens + spec = 1 exactly, so the denominator is zero and the estimator is undefined. A judge on that line carries no information about the true rate.";
+    return base;
+  }
+  if(J < 0){
+    base.ok = false; base.status = "inverted";
+    base.reason = "sens + spec < 1, so the denominator is negative and the correction runs backwards: a higher apparent rate would produce a lower corrected rate.";
+    return base;
+  }
+
+  var theta = div(pApp + spec - 1, J);
+  if(theta === null || !Number.isFinite(theta)){
+    base.ok = false; base.status = "degenerate";
+    base.reason = "the corrected value is not finite";
+    return base;
+  }
+  base.theta = theta;
+
+  var vP = div(pApp * (1 - pApp), uTotal);
+  var vSe = div(sens * (1 - sens), n1);
+  var vSp = div(spec * (1 - spec), n0);
+  if(vP !== null && vSe !== null && vSp !== null){
+    var numer = vP + theta * theta * vSe + (1 - theta) * (1 - theta) * vSp;
+    var varT = div(numer, J * J);
+    if(varT !== null && varT >= 0 && Number.isFinite(varT)){
+      base.se = Math.sqrt(varT);
+      base.half = z * base.se;
+      base.lo = theta - base.half;
+      base.hi = theta + base.half;
+      base.varApparentPart = div(vP, J * J);
+      base.varSensPart = div(theta * theta * vSe, J * J);
+      base.varSpecPart = div((1 - theta) * (1 - theta) * vSp, J * J);
+    }
+  }
+
+  if(theta < 0){
+    base.ok = false; base.status = "below_zero";
+    base.reason = "the apparent pass rate " + fmtPctPlain(pApp) + " is below 1 - specificity (" + fmtPctPlain(1 - spec) + "), so the corrected value leaves [0,1] downward.";
+    return base;
+  }
+  if(theta > 1){
+    base.ok = false; base.status = "above_one";
+    base.reason = "the apparent pass rate " + fmtPctPlain(pApp) + " is above sensitivity (" + fmtPctPlain(sens) + "), so the corrected value leaves [0,1] upward.";
+    return base;
+  }
+
+  base.ok = true; base.status = "ok";
+  return base;
+}
+
+/** Cohen's kappa with expected agreement from the observed marginals. */
+function cohensKappa(m){
+  var n = m.tp + m.fp + m.fn + m.tn;
+  if(n === 0) return { ok:false, reason:"empty table" };
+  var po = div(m.tp + m.tn, n);
+  var humanPass = m.tp + m.fn, humanFail = m.fp + m.tn;
+  var judgePass = m.tp + m.fp, judgeFail = m.fn + m.tn;
+  var pe = div(humanPass * judgePass + humanFail * judgeFail, n * n);
+  if(po === null || pe === null) return { ok:false, reason:"marginals not computable" };
+  if(pe === 1){
+    return { ok:false, status:"degenerate", po:po, pe:pe,
+             reason:"expected agreement is exactly 1, so kappa is undefined - both raters put everything in one category." };
+  }
+  var kappa = div(po - pe, 1 - pe);
+  if(kappa === null || !Number.isFinite(kappa)) return { ok:false, reason:"kappa not finite" };
+  return { ok:true, n:n, po:po, pe:pe, kappa:kappa, band:kappaBand(kappa),
+           humanPass:humanPass, humanFail:humanFail, judgePass:judgePass, judgeFail:judgeFail };
+}
+
+/** Conventional Landis and Koch bands. An arbitrary convention, not a threshold. */
+function kappaBand(k){
+  if(!Number.isFinite(k)) return "undefined";
+  if(k <= 0) return "no better than chance";
+  if(k <= 0.20) return "slight";
+  if(k <= 0.40) return "fair";
+  if(k <= 0.60) return "moderate";
+  if(k <= 0.80) return "substantial";
+  return "almost perfect";
+}
+
+/**
+ * Attenuation identity. Under judge error that is independent of the system
+ * under test AND symmetric, a true gap G is reported as G * (1 - 2e),
+ * and (1 - 2e) equals sens + spec - 1.
+ * Returns a CEILING on the true gap, never a correction to apply.
+ */
+function attenuationCeiling(sens, spec, measuredGap){
+  if(!Number.isFinite(sens) || !Number.isFinite(spec)) return { ok:false, reason:"sens or spec undefined" };
+  var missRate = 1 - sens;   // P(judge fails a good response)
+  var falseRate = 1 - spec;  // P(judge passes a bad response)
+  var e = (missRate + falseRate) / 2;
+  var factor = sens + spec - 1;
+  var asym = Math.abs(missRate - falseRate);
+  var out = { e:e, missRate:missRate, falseRate:falseRate, factor:factor,
+              asymmetry:asym, symmetric: asym < 0.02 };
+  if(factor <= 0){
+    out.ok = false;
+    out.reason = "the attenuation factor 1 - 2e is " + factor.toFixed(4) + ", which is not positive. At or below this line the judge carries no usable signal about a gap and the identity says nothing.";
+    return out;
+  }
+  if(!Number.isFinite(measuredGap)){
+    out.ok = false; out.reason = "no measured gap supplied";
+    return out;
+  }
+  var implied = div(measuredGap, factor);
+  if(implied === null){ out.ok = false; out.reason = "implied gap not finite"; return out; }
+  out.ok = true;
+  out.measuredGap = measuredGap;
+  out.impliedCeiling = implied;
+  out.floor = 0;
+  return out;
+}
+
+/** Master pure entry point. Input is a plain object of raw strings and flags. */
+function calibrate(input){
+  var problems = [];
+  var m = {
+    tp: parseCount(input.tp),
+    fp: parseCount(input.fp),
+    fn: parseCount(input.fn),
+    tn: parseCount(input.tn)
+  };
+  var labels = ["tp","fp","fn","tn"];
+  var pretty = Object.create(null);
+  pretty.tp = "Judge PASS / human PASS";
+  pretty.fp = "Judge PASS / human FAIL";
+  pretty.fn = "Judge FAIL / human PASS";
+  pretty.tn = "Judge FAIL / human FAIL";
+
+  for(var i = 0; i < labels.length; i++){
+    var key = labels[i];
+    if(m[key] === null){
+      var name = Object.prototype.hasOwnProperty.call(pretty, key) ? pretty[key] : key;
+      problems.push(name + " must be a whole number of 0 or more.");
+    }
+  }
+
+  var uTotal = parseCount(input.uTotal);
+  var uPass = parseCount(input.uPass);
+  if(uTotal === null) problems.push("The unlabeled run size must be a whole number of 1 or more.");
+  if(uPass === null) problems.push("The unlabeled pass count must be a whole number of 0 or more.");
+  if(uTotal !== null && uTotal < 1) problems.push("The unlabeled run size must be at least 1.");
+  if(uTotal !== null && uPass !== null && uPass > uTotal){
+    problems.push("The judge cannot pass more items (" + uPass + ") than the run contains (" + uTotal + ").");
+  }
+
+  var sampling = String(input.sampling === undefined || input.sampling === null ? "" : input.sampling);
+  var samplingKnown = Object.create(null);
+  samplingKnown.random = true;
+  samplingKnown.handpicked = true;
+  samplingKnown.unsure = true;
+  var samplingChosen = Object.prototype.hasOwnProperty.call(samplingKnown, sampling);
+  if(!samplingChosen) problems.push("Choose how the calibration set was built. This gate cannot be skipped.");
+
+  if(problems.length > 0) return { ok:false, stage:"input", problems:problems };
+
+  var n = m.tp + m.fp + m.fn + m.tn;
+  if(n < 2) return { ok:false, stage:"input", problems:["The calibration set needs at least 2 labeled items."] };
+
+  var kappa = cohensKappa(m);
+
+  var descriptive = {
+    n:n,
+    N: uTotal,
+    uPass: uPass,
+    humanPass: m.tp + m.fn,
+    humanFail: m.fp + m.tn,
+    judgePass: m.tp + m.fp,
+    judgeFail: m.fn + m.tn,
+    labeledJudgeRate: div(m.tp + m.fp, n),
+    labeledHumanRate: div(m.tp + m.fn, n),
+    rawAgreement: div(m.tp + m.tn, n),
+    sens: div(m.tp, m.tp + m.fn),
+    spec: div(m.tn, m.tn + m.fp)
+  };
+
+  // ---- HARD GATE ----------------------------------------------------------
+  if(sampling !== "random"){
+    return {
+      ok:false, stage:"gate", gateReason:sampling,
+      kappa:kappa, descriptive:descriptive,
+      problems:[]
+    };
+  }
+
+  var ppi = ppiEstimate(m, uPass, uTotal, Z95);
+  var rg = roganGladen(m, uPass, uTotal, Z95);
+  var apparent = binomialInterval(uPass, uTotal, Z95);
+  var humanOnly = binomialInterval(m.tp + m.fn, n, Z95);
+  var consistency = twoProportionZ(m.tp + m.fp, n, uPass, uTotal);
+
+  var divergence = null;
+  if(ppi.ok && rg.ok && Number.isFinite(rg.theta)){
+    divergence = { diff: ppi.theta - rg.theta, abs: Math.abs(ppi.theta - rg.theta) };
+  }
+
+  var regrRaw = parsePercent(input.regr);
+  var regrSupplied = !(regrRaw === null || Number.isNaN(regrRaw));
+  var regr = regrSupplied ? regrRaw : 3;
+
+  var precision = {
+    regressionPoints: regr,
+    regressionSupplied: regrSupplied,
+    apparentHalfPoints: apparent.ok ? apparent.half * 100 : null,
+    ppiHalfPoints: ppi.ok ? ppi.half * 100 : null,
+    rgHalfPoints: (rg && Number.isFinite(rg.half)) ? rg.half * 100 : null,
+    humanOnlyHalfPoints: humanOnly.ok ? humanOnly.half * 100 : null
+  };
+  precision.widenFactor = (precision.apparentHalfPoints && precision.ppiHalfPoints)
+    ? div(precision.ppiHalfPoints, precision.apparentHalfPoints) : null;
+  precision.swallowedByPpi = (precision.ppiHalfPoints !== null)
+    ? (regr <= precision.ppiHalfPoints) : null;
+  precision.swallowedByApparent = (precision.apparentHalfPoints !== null)
+    ? (regr <= precision.apparentHalfPoints) : null;
+
+  var gap = null;
+  var rateB = parsePercent(input.rateB);
+  if(rateB !== null && !Number.isNaN(rateB) && apparent.ok){
+    var measured = apparent.p - (rateB / 100);
+    gap = attenuationCeiling(descriptive.sens, descriptive.spec, measured);
+    if(gap){ gap.rateA = apparent.p; gap.rateB = rateB / 100; }
+  } else if(descriptive.sens !== null && descriptive.spec !== null){
+    gap = attenuationCeiling(descriptive.sens, descriptive.spec, NaN);
+    if(gap) gap.noGapSupplied = true;
+  }
+
+  return {
+    ok:true, stage:"full",
+    matrix:m, descriptive:descriptive,
+    ppi:ppi, rg:rg, kappa:kappa,
+    apparent:apparent, humanOnly:humanOnly,
+    consistency:consistency, divergence:divergence,
+    precision:precision, gap:gap,
+    problems:[]
+  };
+}
+
+/* Formatting helpers. Pure. */
+function fmtPct(x, dp){
+  if(x === null || x === undefined || !Number.isFinite(x)) return "n/a";
+  var d = (dp === undefined) ? 2 : dp;
+  return (x * 100).toFixed(d) + "%";
+}
+function fmtPctPlain(x){ return fmtPct(x, 2); }
+function fmtPoints(x, dp){
+  if(x === null || x === undefined || !Number.isFinite(x)) return "n/a";
+  var d = (dp === undefined) ? 2 : dp;
+  return x.toFixed(d) + " pts";
+}
+function fmtNum(x, dp){
+  if(x === null || x === undefined || !Number.isFinite(x)) return "n/a";
+  var d = (dp === undefined) ? 4 : dp;
+  return x.toFixed(d);
+}
+function fmtSignedPct(x, dp){
+  if(x === null || x === undefined || !Number.isFinite(x)) return "n/a";
+  var d = (dp === undefined) ? 2 : dp;
+  var v = x * 100;
+  return (v >= 0 ? "+" : "") + v.toFixed(d) + " pts";
+}
+
+/* Export for Node-based verification without touching the DOM. */
+if(typeof module !== "undefined" && module.exports){
+  module.exports = {
+    parseCount: parseCount, parsePercent: parsePercent, div: div,
+    binomialInterval: binomialInterval, twoProportionZ: twoProportionZ,
+    ppiEstimate: ppiEstimate, roganGladen: roganGladen,
+    cohensKappa: cohensKappa, kappaBand: kappaBand,
+    attenuationCeiling: attenuationCeiling, calibrate: calibrate,
+    fmtPct: fmtPct, fmtPoints: fmtPoints, fmtNum: fmtNum, Z95: Z95
+  };
+}
+
+/* ============================================================
+   DOM LAYER
+   ============================================================ */
+(function(){
+  if(typeof document === "undefined") return;
+
+  function $(id){ return document.getElementById(id); }
+  /* Every user-derived string reaches the DOM through textContent or setAttribute.
+     There is no innerHTML assignment anywhere in this file, which is why there is
+     no escape helper: nothing is ever parsed as markup. The two free-text inputs
+     (system names) are length-clamped and inserted as text nodes only. */
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(text !== undefined && text !== null) e.textContent = String(text);
+    return e;
+  }
+  function kv(parent, k, v){
+    var row = el("div", "kv");
+    row.appendChild(el("span", "k", k));
+    row.appendChild(el("span", "v", v));
+    parent.appendChild(row);
+    return row;
+  }
+  function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+  /* ---- theme ---- */
+  var themeBtn = $("themeBtn"), themeLabel = $("themeLabel");
+  function currentTheme(){
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+  function paintTheme(){
+    var t = currentTheme();
+    themeLabel.textContent = (t === "light") ? "Dark mode" : "Light mode";
+    themeBtn.setAttribute("aria-pressed", t === "light" ? "true" : "false");
+    themeBtn.setAttribute("aria-label", "Switch to " + (t === "light" ? "dark" : "light") + " mode");
+  }
+  paintTheme();
+  themeBtn.addEventListener("click", function(){
+    var next = currentTheme() === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    try{ window.localStorage.setItem("ljc-theme", next); }catch(e){}
+    paintTheme();
+  });
+
+  /* ---- inputs ---- */
+  var ids = ["tp","fp","fn","tn","uTotal","uPass","rateB","regr","nameA","nameB"];
+  function readForm(){
+    var o = Object.create(null);
+    for(var i = 0; i < ids.length; i++){ o[ids[i]] = $(ids[i]).value; }
+    var checked = document.querySelector('input[name="sampling"]:checked');
+    o.sampling = checked ? checked.value : "";
+    return o;
+  }
+  function anyFilled(){
+    var keys = ["tp","fp","fn","tn","uTotal","uPass"];
+    for(var i = 0; i < keys.length; i++){
+      if(String($(keys[i]).value).trim() !== "") return true;
+    }
+    return document.querySelector('input[name="sampling"]:checked') !== null;
+  }
+
+  function systemNames(raw){
+    var a = String(raw.nameA === undefined ? "" : raw.nameA).trim();
+    var b = String(raw.nameB === undefined ? "" : raw.nameB).trim();
+    return { a: a === "" ? "System A" : a.slice(0, 40), b: b === "" ? "System B" : b.slice(0, 40) };
+  }
+
+  /* ---- renderers ---- */
+  var lastSummary = "";
+  var lastMath = "";
+
+  function renderProblems(list){
+    var box = $("problems");
+    clear(box);
+    if(!list || list.length === 0){ box.className = "hidden"; return; }
+    box.className = "refuse";
+    box.appendChild(el("h3", "rh", "Cannot compute yet"));
+    var ul = el("ul");
+    for(var i = 0; i < list.length; i++){ ul.appendChild(el("li", "small", list[i])); }
+    box.appendChild(ul);
+  }
+
+  function renderGate(res){
+    var box = $("gateBlock");
+    clear(box);
+    box.className = "";
+    var wrapEl = el("div", "refuse");
+    wrapEl.appendChild(el("h3", "rh", "Refused: prediction-powered inference needs a randomly sampled calibration set"));
+
+    var why = (res.gateReason === "handpicked")
+      ? "You told the tool the calibration set was hand-picked, stratified, or adversarially selected."
+      : "You told the tool you do not know how the calibration set was built, and unknown is not random.";
+    wrapEl.appendChild(el("p", "small", why));
+
+    var p2 = el("p", "small");
+    p2.textContent = "PPI is valid because the labeled subset and the unlabeled pool are draws from the same distribution. The entire correction is the average judge error measured on the labeled subset, then transported to the pool. If someone chose the labeled items because they were interesting, hard, flagged, or already suspected of being wrong, the measured error is the error on interesting cases, not the error on your traffic. Transporting it produces a number with a confidence interval around it and no relationship to the truth, which is worse than the uncorrected rate because it looks rigorous.";
+    wrapEl.appendChild(p2);
+
+    var p3 = el("p", "small");
+    p3.textContent = "Rogan-Gladen is refused for the same reason: its sensitivity and specificity are estimated from that same subset and are transported the same way.";
+    wrapEl.appendChild(p3);
+
+    var p4 = el("p", "small");
+    p4.textContent = "The fix is not a setting on this page. Draw a fresh random sample from the pool you want the number for, label that, and come back.";
+    wrapEl.appendChild(p4);
+    box.appendChild(wrapEl);
+
+    var still = el("div", "panel");
+    still.appendChild(el("h3", "rh", "Still computable: properties of the labeled set itself"));
+    still.appendChild(el("p", "small", "These describe the table you entered and make no claim about your production run, so the sampling gate does not touch them."));
+    var d = res.descriptive;
+    kv(still, "Labeled items", String(d.n));
+    kv(still, "Human pass rate on the labeled set", fmtPct(d.labeledHumanRate));
+    kv(still, "Judge pass rate on the labeled set", fmtPct(d.labeledJudgeRate));
+    kv(still, "Raw agreement", fmtPct(d.rawAgreement));
+    kv(still, "Sensitivity (judge passes a good response)", d.sens === null ? "undefined" : fmtPct(d.sens));
+    kv(still, "Specificity (judge fails a bad response)", d.spec === null ? "undefined" : fmtPct(d.spec));
+    if(res.kappa && res.kappa.ok){
+      kv(still, "Cohen's kappa", fmtNum(res.kappa.kappa, 4) + "  (" + res.kappa.band + ")");
+    } else if(res.kappa){
+      kv(still, "Cohen's kappa", "undefined");
+    }
+    box.appendChild(still);
+  }
+
+  function renderRg(res){
+    var box = $("rgBox"); clear(box);
+    var rg = res.rg;
+    var panel = el("div", "panel");
+
+    var head = el("p");
+    var b = el("span", "badge", "");
+    if(rg.ok){ b.className = "badge ok"; b.textContent = "in range"; }
+    else if(rg.status === "below_zero" || rg.status === "above_one"){ b.className = "badge bad"; b.textContent = "outside [0,1]"; }
+    else { b.className = "badge bad"; b.textContent = "degenerate"; }
+    head.appendChild(b);
+    head.appendChild(document.createTextNode("  Rogan-Gladen 1978, the classical screening-test correction."));
+    panel.appendChild(head);
+
+    if(rg.sens !== undefined && rg.spec !== undefined){
+      kv(panel, "Sensitivity from your table", fmtPct(rg.sens) + "   (TP / (TP+FN) = " + res.matrix.tp + " / " + rg.n1 + ")");
+      kv(panel, "Specificity from your table", fmtPct(rg.spec) + "   (TN / (TN+FP) = " + res.matrix.tn + " / " + rg.n0 + ")");
+      kv(panel, "Youden index J = sens + spec - 1", fmtNum(rg.J, 5));
+      kv(panel, "Valid apparent-rate window", fmtPct(rg.lowerEdge) + " to " + fmtPct(rg.upperEdge));
+      kv(panel, "Your apparent rate", fmtPct(rg.pApp));
+    }
+
+    if(rg.ok){
+      kv(panel, "Corrected true pass rate (Rogan-Gladen)", fmtPct(rg.theta));
+      if(Number.isFinite(rg.half)){
+        kv(panel, "95% interval, delta method", fmtPct(rg.lo) + " to " + fmtPct(rg.hi) + "  (+/- " + fmtPoints(rg.half * 100) + ")");
+        var sub = el("div", "small");
+        sub.style.marginTop = ".6em";
+        sub.textContent = "Where that width comes from: apparent-rate variance contributes " +
+          fmtNum(rg.varApparentPart, 8) + ", sensitivity uncertainty " + fmtNum(rg.varSensPart, 8) +
+          ", specificity uncertainty " + fmtNum(rg.varSpecPart, 8) + ". If any of the last two dominates, your interval is a statement about the size of your calibration set, not about your model.";
+        panel.appendChild(sub);
+      }
+    } else {
+      var r = el("div", "note bad");
+      r.textContent = "Refused: " + rg.reason;
+      panel.appendChild(r);
+      if(rg.status === "below_zero" || rg.status === "above_one"){
+        var extra = el("p", "small");
+        extra.textContent = "Note a property this tool derives rather than cites: when the judge's pass rate on the calibration set equals its pass rate on the unlabeled pool, Rogan-Gladen returns exactly the human pass rate of the calibration set, which is always inside [0,1]. So an out-of-range Rogan-Gladen result is always driven by a mismatch between those two apparent rates. Check the sanity panel below.";
+        panel.appendChild(extra);
+      }
+    }
+
+    var assume = el("div", "note warn");
+    assume.textContent = "Assumption printed, as required: Rogan-Gladen treats sensitivity and specificity as fixed properties of the judge that transfer unchanged from the calibration set to the production pool, which means the judge's error must be independent of which system produced the response. The dated references at the top of this page report that assumption failing for LLM judges. PPI above needs no such assumption.";
+    panel.appendChild(assume);
+
+    box.appendChild(panel);
+  }
+
+  function renderDivergence(res){
+    var box = $("divBox"); clear(box);
+    var panel = el("div", "panel");
+    if(res.divergence && res.ppi.ok && res.rg.ok){
+      var d = res.divergence;
+      var row = el("div", "grid three");
+      var s1 = el("div", "stat");
+      s1.appendChild(el("div", "lbl", "PPI"));
+      s1.appendChild(el("div", "val", fmtPct(res.ppi.theta)));
+      s1.appendChild(el("div", "sub", "no assumption on judge error"));
+      var s2 = el("div", "stat");
+      s2.appendChild(el("div", "lbl", "Rogan-Gladen"));
+      s2.appendChild(el("div", "val", fmtPct(res.rg.theta)));
+      s2.appendChild(el("div", "sub", "assumes independent judge error"));
+      var s3 = el("div", "stat");
+      s3.appendChild(el("div", "lbl", "PPI minus RG"));
+      var v3 = el("div", "val " + (d.abs >= 0.02 ? "warn" : ""), fmtSignedPct(d.diff));
+      s3.appendChild(v3);
+      s3.appendChild(el("div", "sub", d.abs >= 0.02 ? "they materially disagree" : "they roughly agree here"));
+      row.appendChild(s1); row.appendChild(s2); row.appendChild(s3);
+      panel.appendChild(row);
+
+      var p = el("p", "small");
+      p.style.marginTop = "1em";
+      if(d.abs < 0.0005){
+        p.textContent = "The two estimators agree to within half a basis point here. That is not a coincidence and it is worth knowing why: when the judge's pass rate on the calibration set exactly equals its pass rate on the unlabeled pool, both estimators collapse to the human pass rate of the calibration set. The divergence you are looking for only appears when those two apparent rates differ, which they normally do, from sampling noise if nothing else.";
+      } else {
+        p.textContent = "The two numbers disagree by " + fmtPoints(d.abs * 100) + ". Rogan-Gladen back-solves the true rate through fixed sensitivity and specificity, so it rescales the whole apparent rate; PPI subtracts the absolute bias the judge actually exhibited on the labeled draw. They coincide exactly when the calibration set's judge pass rate equals the pool's, and separate as those drift apart. Report the PPI number. Rogan-Gladen is on screen so you can see how far a defensible-looking classical correction can move when its independence assumption is the thing in doubt.";
+      }
+      panel.appendChild(p);
+    } else {
+      var note = el("div", "note");
+      var why = "";
+      if(!res.ppi.ok) why = "PPI did not compute: " + (res.ppi.reason || "unknown");
+      else if(!res.rg.ok) why = "Rogan-Gladen refused (" + res.rg.status + "), so there is nothing to compare against. That refusal is the finding.";
+      note.textContent = why;
+      panel.appendChild(note);
+      if(res.ppi.ok){
+        var p2 = el("p", "small");
+        p2.textContent = "PPI still returns " + fmtPct(res.ppi.theta) + " with a 95% interval of " + fmtPct(res.ppi.lo) + " to " + fmtPct(res.ppi.hi) + ". That is the divergence in its starkest form: the classical correction has no answer for this table and the prediction-powered one does.";
+        panel.appendChild(p2);
+      }
+    }
+    box.appendChild(panel);
+  }
+
+  function renderPrecision(res){
+    var box = $("precBox"); clear(box);
+    var panel = el("div", "panel");
+    var pr = res.precision;
+
+    var sc = el("div", "scroll-x");
+    var t = el("table");
+    var thead = el("thead");
+    var hr = el("tr");
+    ["Estimate", "Value", "95% half-width", "What its width is a statement about"].forEach(function(h){
+      hr.appendChild(el("th", null, h));
+    });
+    thead.appendChild(hr); t.appendChild(thead);
+    var tb = el("tbody");
+
+    function row(name, val, half, meaning){
+      var tr = el("tr");
+      tr.appendChild(el("td", null, name));
+      tr.appendChild(el("td", "num", val));
+      tr.appendChild(el("td", "num", half));
+      tr.appendChild(el("td", null, meaning));
+      tb.appendChild(tr);
+    }
+    row("Judge's raw rate (uncorrected)",
+        res.apparent.ok ? fmtPct(res.apparent.p) : "n/a",
+        pr.apparentHalfPoints === null ? "n/a" : "+/- " + fmtPoints(pr.apparentHalfPoints),
+        "the size of the production run only");
+    row("Human-labeled subset only",
+        res.humanOnly.ok ? fmtPct(res.humanOnly.p) : "n/a",
+        pr.humanOnlyHalfPoints === null ? "n/a" : "+/- " + fmtPoints(pr.humanOnlyHalfPoints),
+        "the size of the calibration set only");
+    row("PPI (headline)",
+        res.ppi.ok ? fmtPct(res.ppi.theta) : "n/a",
+        pr.ppiHalfPoints === null ? "n/a" : "+/- " + fmtPoints(pr.ppiHalfPoints),
+        "both, weighted by how wrong the judge was");
+    row("Rogan-Gladen",
+        res.rg.ok ? fmtPct(res.rg.theta) : "refused",
+        pr.rgHalfPoints === null ? "n/a" : "+/- " + fmtPoints(pr.rgHalfPoints),
+        "mostly the calibration set, through sens and spec");
+    t.appendChild(tb);
+    sc.appendChild(t); panel.appendChild(sc);
+
+    if(pr.widenFactor !== null && Number.isFinite(pr.widenFactor)){
+      var p = el("p", "small");
+      p.style.marginTop = "1em";
+      p.textContent = "Propagating the calibration uncertainty widens the interval by a factor of " +
+        fmtNum(pr.widenFactor, 1) + " against the naive binomial interval on the apparent rate. That naive interval is the one that makes a judge look like a measuring instrument accurate to a fraction of a point. It is not, and its narrowness is a statement about how many items the judge scored, not about whether the judge was right.";
+      panel.appendChild(p);
+    }
+
+    if(pr.ppiHalfPoints !== null){
+      var box2 = el("div", "note " + (pr.swallowedByPpi ? "bad" : "good"));
+      var entered = pr.regressionSupplied
+        ? " point regression you entered is "
+        : " point regression assumed by default, because that box is empty, is ";
+      if(pr.swallowedByPpi){
+        box2.textContent = "The " + fmtNum(pr.regressionPoints, 2) + entered + "smaller than the +/- " +
+          fmtPoints(pr.ppiHalfPoints) + " half-width of the corrected estimate of the LEVEL. You cannot state the true pass rate more precisely than that from this calibration set, so a claim of the form 'we dropped " +
+          fmtNum(pr.regressionPoints, 2) + " points in absolute quality' is not supported by these numbers.";
+      } else {
+        box2.textContent = "The " + fmtNum(pr.regressionPoints, 2) + entered + "larger than the +/- " +
+          fmtPoints(pr.ppiHalfPoints) + " half-width of the corrected level estimate, so it is not swallowed by calibration uncertainty at this sample size.";
+      }
+      panel.appendChild(box2);
+
+      var honest = el("p", "small");
+      honest.textContent = "Read that carefully, because it is easy to over-apply. It is about the LEVEL: how precisely you can state a single system's true pass rate. A DIFFERENCE between two systems scored by the same judge is a different quantity, and part of the calibration error is common to both and cancels. How much cancels depends on whether the judge's error is independent of which system produced the output, which is the assumption in doubt. That is what the gap panel below is for, and why it reports a ceiling rather than a corrected number.";
+      panel.appendChild(honest);
+    }
+    box.appendChild(panel);
+  }
+
+  function renderKappa(res){
+    var box = $("kappaBox"); clear(box);
+    var panel = el("div", "panel");
+    var k = res.kappa;
+    if(k.ok){
+      var row = el("div", "grid three");
+      var s1 = el("div", "stat");
+      s1.appendChild(el("div", "lbl", "Raw agreement (p_o)"));
+      s1.appendChild(el("div", "val", fmtPct(k.po)));
+      s1.appendChild(el("div", "sub", "the number that flatters"));
+      var s2 = el("div", "stat");
+      s2.appendChild(el("div", "lbl", "Expected by chance (p_e)"));
+      s2.appendChild(el("div", "val", fmtPct(k.pe)));
+      s2.appendChild(el("div", "sub", "from YOUR marginals"));
+      var s3 = el("div", "stat");
+      var cls = k.kappa <= 0.2 ? "val bad" : (k.kappa <= 0.6 ? "val warn" : "val good");
+      s3.appendChild(el("div", "lbl", "Cohen's kappa"));
+      s3.appendChild(el("div", cls, fmtNum(k.kappa, 4)));
+      s3.appendChild(el("div", "sub", k.band));
+      row.appendChild(s1); row.appendChild(s2); row.appendChild(s3);
+      panel.appendChild(row);
+
+      var p = el("p", "small");
+      p.style.marginTop = "1em";
+      p.textContent = "p_e = [ (" + k.humanPass + " x " + k.judgePass + ") + (" + k.humanFail + " x " + k.judgeFail + ") ] / " +
+        k.n + "^2 = " + fmtNum(k.pe, 6) + ". Those four numbers are the row and column totals of the table you entered. Nothing here is hardcoded to 0.5, which is the difference between kappa and a decorative number: a judge that says pass to everything on an 85 percent pass set scores 85 percent raw agreement and kappa of exactly 0.00.";
+      panel.appendChild(p);
+
+      var band = el("p", "tiny");
+      band.textContent = "The band label uses the conventional Landis and Koch 1977 cut points. Those cut points are an arbitrary convention with no distributional justification, which is why the number is printed larger than the word.";
+      panel.appendChild(band);
+    } else {
+      var note = el("div", "note bad");
+      note.textContent = "Kappa refused: " + (k.reason || "not computable");
+      panel.appendChild(note);
+      if(k.po !== undefined){
+        kv(panel, "Raw agreement (p_o)", fmtPct(k.po));
+        kv(panel, "Expected agreement (p_e)", fmtPct(k.pe));
+      }
+    }
+    box.appendChild(panel);
+  }
+
+  function renderGap(res, names){
+    var box = $("gapBox"); clear(box);
+    var panel = el("div", "panel");
+    var g = res.gap;
+    if(!g || !Number.isFinite(g.factor)){
+      var none = el("div", "note");
+      none.textContent = "Sensitivity or specificity is undefined for this table (one arm of the calibration set is empty), so the attenuation identity has nothing to work with. Label at least one item of each kind and it will appear.";
+      panel.appendChild(none);
+      box.appendChild(panel); return;
+    }
+
+    kv(panel, "Judge misses a good response (1 - sens)", fmtPct(g.missRate));
+    kv(panel, "Judge waves through a bad one (1 - spec)", fmtPct(g.falseRate));
+    kv(panel, "Asymmetry between the two", fmtPoints(g.asymmetry * 100));
+    kv(panel, "Attenuation factor 1 - 2e = sens + spec - 1", fmtNum(g.factor, 5));
+
+    var sym = el("div", "note " + (g.symmetric ? "good" : "warn"));
+    sym.textContent = g.symmetric
+      ? "Your judge's two error rates are within 2 points of each other, so the symmetry precondition of the identity is at least not obviously violated by your own data."
+      : "Your judge's two error rates differ by " + fmtPoints(g.asymmetry * 100) + ". The identity assumes they are equal. They are not, on your own calibration data, so treat anything the identity produces here as illustrative arithmetic rather than as a measurement of anything.";
+    panel.appendChild(sym);
+
+    if(!g.ok && g.factor <= 0){
+      var dead = el("div", "note bad");
+      dead.textContent = "Refused: " + g.reason + " Entering a second system would not change that, because the identity has no positive factor to divide by.";
+      panel.appendChild(dead);
+    } else if(!g.ok && g.noGapSupplied){
+      panel.appendChild(el("p", "small", "Enter a judge-reported pass rate for a second system in section 4 to see the ceiling this identity puts on a between-system gap."));
+    } else if(!g.ok){
+      var bad = el("div", "note bad");
+      bad.textContent = "Refused: " + g.reason;
+      panel.appendChild(bad);
+    } else {
+      var t = el("div", "scroll-x");
+      var tbl = el("table");
+      var thead = el("thead"); var hr = el("tr");
+      ["Quantity", "Value"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+      thead.appendChild(hr); tbl.appendChild(thead);
+      var tb = el("tbody");
+      function r(a, b){ var tr = el("tr"); tr.appendChild(el("td", null, a)); tr.appendChild(el("td", "num", b)); tb.appendChild(tr); }
+      r(names.a + ", judge-reported", fmtPct(g.rateA));
+      r(names.b + ", judge-reported", fmtPct(g.rateB));
+      r("Measured gap", fmtSignedPct(g.measuredGap));
+      r("Ceiling on the true gap under the ideal error model", fmtSignedPct(g.impliedCeiling));
+      r("Floor on the true gap", "0.00 pts");
+      tbl.appendChild(tb); t.appendChild(tbl); panel.appendChild(t);
+
+      var expl = el("p", "small");
+      expl.style.marginTop = "1em";
+      expl.textContent = "Read this as a bound, not as a correction. Do not replace " + fmtSignedPct(g.measuredGap) +
+        " with " + fmtSignedPct(g.impliedCeiling) + " in a report. Under judge error that is independent of the system under test and symmetric between the two error types, noise can only shrink a real gap, so " +
+        fmtSignedPct(g.impliedCeiling) + " is the most the identity licenses you to claim. The floor is zero, because error correlated with which system produced the output can manufacture a gap out of nothing, and that is exactly what the papers quoted at the top of this page report.";
+      panel.appendChild(expl);
+    }
+    box.appendChild(panel);
+  }
+
+  function renderChecks(res){
+    var box = $("checkBox"); clear(box);
+    var panel = el("div", "panel");
+    var c = res.consistency;
+    var d = res.descriptive;
+
+    kv(panel, "Judge pass rate on the calibration set", fmtPct(d.labeledJudgeRate));
+    kv(panel, "Judge pass rate on the unlabeled pool", res.apparent.ok ? fmtPct(res.apparent.p) : "n/a");
+    if(c.ok){
+      kv(panel, "Two-proportion z between them", fmtNum(c.z, 3));
+      var note;
+      var az = Math.abs(c.z);
+      if(az >= 2.5758293035489004){
+        note = el("div", "note bad");
+        note.textContent = "That z is beyond the 99 percent two-sided cut point. The judge behaves measurably differently on your calibration set than on the pool you are extrapolating to. Under genuine random sampling that should not happen often. Either the pool drifted after the calibration set was drawn, or the set was not drawn the way you think. PPI's validity rests on this being a random draw, so treat the headline with suspicion until you know which.";
+      } else if(az >= Z95){
+        note = el("div", "note warn");
+        note.textContent = "That z is beyond the 95 percent two-sided cut point. It is not damning on its own, but it is the one signal in this tool that can catch a calibration set that is not the random draw someone believes it is. Worth checking how the set was actually built.";
+      } else {
+        note = el("div", "note good");
+        note.textContent = "The judge behaves consistently across the calibration set and the pool, which is what a random draw should look like. This does not prove random sampling, it just fails to disprove it.";
+      }
+      panel.appendChild(note);
+    }
+
+    var small = res.descriptive.n < 100;
+    if(small){
+      var w = el("div", "note warn");
+      w.textContent = "Your calibration set has " + res.descriptive.n + " items. Below roughly 100 the sensitivity and specificity estimates are noisy enough that the corrected interval is dominated by them, and the corrected number will move a lot when you label the next fifty items.";
+      panel.appendChild(w);
+    }
+    var n1 = res.matrix.tp + res.matrix.fn, n0 = res.matrix.tn + res.matrix.fp;
+    if(n0 < 20 || n1 < 20){
+      var w2 = el("div", "note warn");
+      w2.textContent = "One arm of the table is thin: " + n1 + " human-labeled passes and " + n0 +
+        " human-labeled fails. Specificity is estimated from the fails and sensitivity from the passes, so whichever arm is thin is the one driving your interval width.";
+      panel.appendChild(w2);
+    }
+
+    var noCap = el("p", "tiny");
+    noCap.textContent = "No result on this page is truncated or capped. Every total shown is the exact total of what you entered.";
+    panel.appendChild(noCap);
+
+    box.appendChild(panel);
+  }
+
+  function buildSummary(res, names){
+    var L = [];
+    L.push("LLM Judge Calibrator - summary");
+    L.push("Generated in-browser. Arithmetic only, no external data.");
+    L.push("");
+    L.push("CALIBRATION SET (n = " + res.descriptive.n + ", declared randomly sampled)");
+    L.push("  Judge PASS / human PASS : " + res.matrix.tp);
+    L.push("  Judge PASS / human FAIL : " + res.matrix.fp);
+    L.push("  Judge FAIL / human PASS : " + res.matrix.fn);
+    L.push("  Judge FAIL / human FAIL : " + res.matrix.tn);
+    L.push("  Sensitivity : " + fmtPct(res.descriptive.sens));
+    L.push("  Specificity : " + fmtPct(res.descriptive.spec));
+    L.push("");
+    L.push("UNLABELED RUN (N = " + res.descriptive.N + ")");
+    L.push("  Judge-reported pass rate : " + (res.apparent.ok ? fmtPct(res.apparent.p) : "n/a"));
+    L.push("");
+    L.push("HEADLINE - prediction-powered inference (no assumption on judge error)");
+    if(res.ppi.ok){
+      L.push("  True pass rate : " + fmtPct(res.ppi.theta));
+      L.push("  95% interval   : " + fmtPct(res.ppi.lo) + " to " + fmtPct(res.ppi.hi) + " (+/- " + fmtPoints(res.ppi.half * 100) + ")");
+      L.push("  Rectifier      : " + fmtSignedPct(res.ppi.rectifier) + " (judge minus human, averaged over the labeled set)");
+    } else {
+      L.push("  Not computed: " + res.ppi.reason);
+    }
+    L.push("");
+    L.push("BESIDE IT - Rogan-Gladen (assumes judge error independent of the system under test)");
+    if(res.rg.ok){
+      L.push("  True pass rate : " + fmtPct(res.rg.theta));
+      if(Number.isFinite(res.rg.half)){
+        L.push("  95% interval   : " + fmtPct(res.rg.lo) + " to " + fmtPct(res.rg.hi) + " (+/- " + fmtPoints(res.rg.half * 100) + ")");
+      }
+    } else {
+      L.push("  REFUSED (" + res.rg.status + "): " + res.rg.reason);
+    }
+    if(res.divergence){
+      L.push("  PPI minus Rogan-Gladen : " + fmtSignedPct(res.divergence.diff));
+    }
+    L.push("");
+    L.push("AGREEMENT");
+    if(res.kappa.ok){
+      L.push("  Raw agreement : " + fmtPct(res.kappa.po));
+      L.push("  Expected by chance from observed marginals : " + fmtPct(res.kappa.pe));
+      L.push("  Cohen's kappa : " + fmtNum(res.kappa.kappa, 4) + " (" + res.kappa.band + ")");
+    } else {
+      L.push("  Kappa undefined: " + (res.kappa.reason || ""));
+    }
+    L.push("");
+    L.push("PRECISION");
+    L.push("  Naive interval on the judge's raw rate : +/- " + (res.precision.apparentHalfPoints === null ? "n/a" : fmtPoints(res.precision.apparentHalfPoints)));
+    L.push("  Corrected (PPI) interval              : +/- " + (res.precision.ppiHalfPoints === null ? "n/a" : fmtPoints(res.precision.ppiHalfPoints)));
+    if(res.precision.widenFactor !== null && Number.isFinite(res.precision.widenFactor)){
+      L.push("  Widening factor                       : " + fmtNum(res.precision.widenFactor, 1) + "x");
+    }
+    if(res.gap && res.gap.ok){
+      L.push("");
+      L.push("BETWEEN-SYSTEM GAP (" + names.a + " vs " + names.b + ")");
+      L.push("  Measured gap : " + fmtSignedPct(res.gap.measuredGap));
+      L.push("  Ceiling on the true gap under independent symmetric error : " + fmtSignedPct(res.gap.impliedCeiling));
+      L.push("  Floor : 0.00 pts. This is a bound, not a correction to apply.");
+    }
+    L.push("");
+    L.push("Judge error is not independent of the system under test; see arXiv:2604.06996 and arXiv:2604.22891.");
+    L.push("PPI estimator: Angelopoulos et al., arXiv:2301.09633. Rogan-Gladen: Am J Epidemiol 1978.");
+    return L.join("\n");
+  }
+
+  function buildMath(res){
+    var M = [];
+    var m = res.matrix;
+    var n = res.descriptive.n;
+    M.push("n = " + m.tp + " + " + m.fp + " + " + m.fn + " + " + m.tn + " = " + n);
+    M.push("N = " + res.descriptive.N + ", judge passes on the pool = " + res.descriptive.uPass);
+    M.push("");
+    M.push("p_app   = " + fmtNum(res.apparent.ok ? res.apparent.p : null, 8));
+    M.push("rectifier = (FP - FN)/n = (" + m.fp + " - " + m.fn + ")/" + n + " = " + fmtNum((m.fp - m.fn) / n, 8));
+    if(res.ppi.ok){
+      M.push("theta_PP  = p_app - rectifier = " + fmtNum(res.ppi.theta, 8));
+      M.push("var term from labeled  = " + fmtNum(res.ppi.varLabeledPart, 10));
+      M.push("var term from unlabeled= " + fmtNum(res.ppi.varUnlabeledPart, 10));
+      M.push("se        = " + fmtNum(res.ppi.se, 8) + ",  half-width = 1.96 * se = " + fmtNum(res.ppi.half, 8));
+    } else {
+      M.push("theta_PP  = not computed: " + (res.ppi.reason || "unknown"));
+    }
+    M.push("");
+    M.push("sens = " + fmtNum(res.descriptive.sens, 8) + ",  spec = " + fmtNum(res.descriptive.spec, 8));
+    M.push("J    = sens + spec - 1 = " + fmtNum(res.rg.J, 8));
+    if(res.rg.theta !== undefined){
+      M.push("theta_RG = (p_app + spec - 1)/J = " + fmtNum(res.rg.theta, 8));
+    } else {
+      M.push("theta_RG = refused (" + res.rg.status + ")");
+    }
+    M.push("");
+    if(res.kappa.ok){
+      M.push("p_o   = (" + m.tp + " + " + m.tn + ")/" + n + " = " + fmtNum(res.kappa.po, 8));
+      M.push("p_e   = [(" + res.kappa.humanPass + " x " + res.kappa.judgePass + ") + (" + res.kappa.humanFail + " x " + res.kappa.judgeFail + ")]/" + n + "^2 = " + fmtNum(res.kappa.pe, 8));
+      M.push("kappa = (p_o - p_e)/(1 - p_e) = " + fmtNum(res.kappa.kappa, 8));
+    }
+    return M.join("\n");
+  }
+
+  /* ---- main run ---- */
+  function run(){
+    var raw = readForm();
+    var names = systemNames(raw);
+    var res = calibrate(raw);
+
+    var results = $("results"), empty = $("emptyState"), gateBox = $("gateBlock");
+    var status = $("srStatus");
+
+    if(!res.ok && res.stage === "input"){
+      results.className = "hidden";
+      gateBox.className = "hidden";
+      if(anyFilled()){
+        renderProblems(res.problems);
+        empty.className = "hidden";
+        status.textContent = res.problems.length + " item(s) still needed before anything can be computed.";
+      } else {
+        renderProblems([]);
+        empty.className = "panel";
+        status.textContent = "Nothing computed yet.";
+      }
+      return;
+    }
+
+    renderProblems([]);
+    empty.className = "hidden";
+
+    if(!res.ok && res.stage === "gate"){
+      results.className = "hidden";
+      renderGate(res);
+      gateBox.className = "";
+      lastSummary = ""; lastMath = "";
+      status.textContent = "Refused. Prediction-powered inference needs a randomly sampled calibration set.";
+      return;
+    }
+
+    gateBox.className = "hidden";
+    clear(gateBox);
+    results.className = "";
+
+    if(res.ppi.ok){
+      $("ppiBig").textContent = fmtPct(res.ppi.theta);
+      $("ppiCi").textContent = "95% interval  " + fmtPct(res.ppi.lo) + "  to  " + fmtPct(res.ppi.hi) +
+        "   (+/- " + fmtPoints(res.ppi.half * 100) + ")";
+      var ex = "theta_PP = mean over the " + res.ppi.N + " unlabeled items of the judge's verdict, minus the average judge-minus-human error over the " +
+        res.descriptive.n + " labeled pairs. That second term is " + fmtSignedPct(res.ppi.rectifier) + ".";
+      if(res.ppi.outOfRange){
+        ex += " Note this point estimate falls outside [0,1], which happens when the rectifier is large relative to the apparent rate. It is reported unclipped rather than silently squashed.";
+      }
+      $("ppiExplain").textContent = ex;
+    } else {
+      $("ppiBig").textContent = "refused";
+      $("ppiCi").textContent = res.ppi.reason || "";
+      $("ppiExplain").textContent = "";
+    }
+
+    $("rawVal").textContent = res.apparent.ok ? fmtPct(res.apparent.p) : "n/a";
+    $("rawSub").textContent = res.apparent.ok ? ("+/- " + fmtPoints(res.apparent.half * 100) + " naive") : "";
+    $("humVal").textContent = res.humanOnly.ok ? fmtPct(res.humanOnly.p) : "n/a";
+    $("humSub").textContent = res.humanOnly.ok ? ("+/- " + fmtPoints(res.humanOnly.half * 100) + " on n = " + res.descriptive.n) : "";
+    $("rectVal").textContent = res.ppi.ok ? fmtSignedPct(res.ppi.rectifier) : "n/a";
+    $("rectSub").textContent = "(FP - FN) / n";
+
+    renderRg(res);
+    renderDivergence(res);
+    renderPrecision(res);
+    renderKappa(res);
+    renderGap(res, names);
+    renderChecks(res);
+
+    lastSummary = buildSummary(res, names);
+    lastMath = buildMath(res);
+
+    status.textContent = res.ppi.ok
+      ? ("Corrected true pass rate " + fmtPct(res.ppi.theta) + ", 95 percent interval " +
+         fmtPct(res.ppi.lo) + " to " + fmtPct(res.ppi.hi) + ". Rogan-Gladen " +
+         (res.rg.ok ? fmtPct(res.rg.theta) : "refused: " + res.rg.status) + ".")
+      : "Prediction-powered estimate could not be computed.";
+  }
+
+  /* ---- copy ---- */
+  function flash(btn, msg){
+    var old = btn.getAttribute("data-label") || btn.textContent;
+    btn.setAttribute("data-label", old);
+    btn.textContent = msg;
+    window.setTimeout(function(){ btn.textContent = btn.getAttribute("data-label") || old; }, 1600);
+  }
+  function copyText(text, btn){
+    if(!text){ flash(btn, "Nothing to copy"); return; }
+    var done = function(){ flash(btn, "Copied"); };
+    var fail = function(){ flash(btn, "Copy blocked"); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, function(){ legacy(); });
+    } else { legacy(); }
+    function legacy(){
+      try{
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "readonly");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if(ok) done(); else fail();
+      }catch(e){ fail(); }
+    }
+  }
+  $("copyBtn").addEventListener("click", function(){ copyText(lastSummary, this); });
+  $("copyMathBtn").addEventListener("click", function(){ copyText(lastMath, this); });
+
+  /* ---- presets ---- */
+  var PRESETS = Object.create(null);
+  PRESETS.sample = {
+    tp:161, fp:21, fn:2, tn:16, uTotal:5000, uPass:4700,
+    sampling:"random", rateB:"91", regr:"3", nameA:"current build", nameB:"last week's build"
+  };
+  PRESETS.rgneg = {
+    tp:10, fp:6, fn:10, tn:34, uTotal:5000, uPass:500,
+    sampling:"random", rateB:"", regr:"3", nameA:"", nameB:""
+  };
+  PRESETS.rghigh = {
+    tp:60, fp:4, fn:20, tn:116, uTotal:5000, uPass:4400,
+    sampling:"random", rateB:"", regr:"3", nameA:"", nameB:""
+  };
+  PRESETS.rgdegen = {
+    tp:55, fp:55, fn:45, tn:45, uTotal:5000, uPass:3000,
+    sampling:"random", rateB:"", regr:"3", nameA:"", nameB:""
+  };
+  PRESETS.kappa0 = {
+    tp:85, fp:15, fn:0, tn:0, uTotal:5000, uPass:5000,
+    sampling:"random", rateB:"", regr:"3", nameA:"", nameB:""
+  };
+  PRESETS.gate = {
+    tp:161, fp:21, fn:2, tn:16, uTotal:5000, uPass:4700,
+    sampling:"handpicked", rateB:"91", regr:"3", nameA:"current build", nameB:"last week's build"
+  };
+
+  function applyPreset(key){
+    if(!Object.prototype.hasOwnProperty.call(PRESETS, key)) return;
+    var p = PRESETS[key];
+    $("tp").value = p.tp; $("fp").value = p.fp; $("fn").value = p.fn; $("tn").value = p.tn;
+    $("uTotal").value = p.uTotal; $("uPass").value = p.uPass;
+    $("rateB").value = p.rateB; $("regr").value = p.regr;
+    $("nameA").value = p.nameA; $("nameB").value = p.nameB;
+    var radios = document.querySelectorAll('input[name="sampling"]');
+    for(var i = 0; i < radios.length; i++){ radios[i].checked = (radios[i].value === p.sampling); }
+    run();
+    var target = $("results").className === "hidden" ? $("gateBlock") : $("results");
+    if(target && target.scrollIntoView) target.scrollIntoView({ behavior:"smooth", block:"start" });
+  }
+
+  $("sampleBtn").addEventListener("click", function(){ applyPreset("sample"); });
+  $("clearBtn").addEventListener("click", function(){
+    for(var i = 0; i < ids.length; i++){ $(ids[i]).value = ""; }
+    $("regr").value = "3";
+    var radios = document.querySelectorAll('input[name="sampling"]');
+    for(var j = 0; j < radios.length; j++){ radios[j].checked = false; }
+    lastSummary = ""; lastMath = "";
+    run();
+    $("emptyIntro").scrollIntoView({ behavior:"smooth", block:"center" });
+  });
+  var caseBtns = $("caseBtns").querySelectorAll("button[data-case]");
+  for(var ci = 0; ci < caseBtns.length; ci++){
+    caseBtns[ci].addEventListener("click", function(){ applyPreset(this.getAttribute("data-case")); });
+  }
+
+  $("form").addEventListener("input", run);
+  $("form").addEventListener("change", run);
+  $("form").addEventListener("submit", function(e){ e.preventDefault(); run(); });
+
+  run();
+})();
+</script>
+</body>
+</html>
