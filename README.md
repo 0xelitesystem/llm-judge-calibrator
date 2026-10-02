@@ -2,9 +2,18 @@
 
 Paste an LLM judge's confusion matrix from a human-labeled calibration set and get a prediction-powered corrected pass rate with a confidence interval, beside Rogan-Gladen and its refusal states.
 
-## Live demo
+**Live demo:** https://0xelitesystem.github.io/llm-judge-calibrator/
 
-https://0xelitesystem.github.io/llm-judge-calibrator/
+## Use
+
+1. Enter the four confusion-matrix counts from your human-labeled calibration set, or click Load sample.
+2. Declare how the calibration set was built. Anything other than a random sample makes the tool refuse to print corrected rates.
+3. Enter the size of the unlabeled run and how many items the judge passed.
+4. Read the prediction-powered estimate and interval beside Rogan-Gladen and kappa, then use Copy the full summary or Copy the arithmetic.
+
+## Why this exists
+
+A judge's raw pass rate inherits the judge's errors, and the usual correction quietly assumes those errors transfer unchanged to production. This is one HTML file with no tracking and no network calls that shows the corrected rate, its uncertainty and when the correction breaks, MIT licensed.
 
 ## Features
 
@@ -71,7 +80,20 @@ Run the significance calculator when you have two runs and want to know if the g
 
 ## Privacy
 
-Everything runs in your browser. There is no backend, no API key, no analytics, no cookies, no telemetry, and no network request of any kind. The page is one HTML file with all CSS and JavaScript inline and no external dependencies. Your confusion matrix and your pass counts never leave the tab, which is the point when the numbers describe an unshipped model.
+Everything runs in your browser. There is no backend, no API key, no analytics, no cookies, no telemetry, and no network request of any kind. The page is one HTML file with all CSS and JavaScript inline and no external dependencies. Your confusion matrix and your pass counts never leave the tab, which is the point when the numbers describe an unshipped model. The one thing the page stores is your light or dark theme choice, saved in `localStorage` under the key `ljc-theme`. The source links in the page open external sites only when you click them.
+
+## Run locally
+
+```
+git clone https://github.com/0xelitesystem/llm-judge-calibrator
+cd llm-judge-calibrator
+```
+
+Open `index.html` in any modern browser. Or serve the folder with `python -m http.server` and visit http://localhost:8000.
+
+## Build
+
+No build step. The whole tool is one `index.html` with inline CSS and JavaScript and no dependencies.
 
 ## License
 
